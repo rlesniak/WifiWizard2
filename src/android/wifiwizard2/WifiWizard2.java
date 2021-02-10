@@ -17,7 +17,7 @@ package wifiwizard2;
 import org.apache.cordova.*;
 
 import java.util.List;
-import java.util.concurrent.Future; 
+import java.util.concurrent.Future;
 import java.lang.InterruptedException;
 
 import org.json.JSONArray;
@@ -97,7 +97,7 @@ public class WifiWizard2 extends CordovaPlugin {
   private static final String GET_WIFI_IP_INFO = "getWifiIPInfo";
 
 
-  
+
   private static final int SCAN_RESULTS_CODE = 0; // Permissions request code for getScanResults()
   private static final int SCAN_CODE = 1; // Permissions request code for scan()
   private static final int LOCATION_REQUEST_CODE = 2; // Permissions request code
@@ -480,9 +480,16 @@ public class WifiWizard2 extends CordovaPlugin {
           }
         };
 
+        String noQuoteSSID = newSSID.replace("\"", "");
+        PatternMatcher ssidPattern = new PatternMatcher(noQuoteSSID, PatternMatcher.PATTERN_PREFIX);
+
         WifiNetworkSpecifier.Builder builder = new WifiNetworkSpecifier.Builder();
-        builder.setSsid(newSSID);
-        builder.setWpa2Passphrase(newPass);
+
+        builder.setSsidPattern(ssidPattern);
+
+        if (!newPass.equals("NONE")) {
+          builder.setWpa2Passphrase(newPass.replace("\"", ""));
+        }
 
         WifiNetworkSpecifier wifiNetworkSpecifier = builder.build();
 
@@ -495,7 +502,7 @@ public class WifiWizard2 extends CordovaPlugin {
         NetworkRequest nr = networkRequestBuilder1.build();
         ConnectivityManager cm = (ConnectivityManager) cordova.getActivity().getApplicationContext().getSystemService(Context.CONNECTIVITY_SERVICE);
         //timeout add because "No devices found" wasn't handled correct and doesn't throw Unavailable
-        cm.requestNetwork(nr, this.networkCallback, 15000);
+        cm.requestNetwork(nr, this.networkCallback, 20000);
       } else {
         // After processing authentication types, add or update network
         if(wifi.networkId == -1) { // -1 means SSID configuration does not exist yet
@@ -765,6 +772,11 @@ public class WifiWizard2 extends CordovaPlugin {
       return;
 
     } else {
+      if (API_VERSION >= 29) {
+        new ConnectAsync().execute(callbackContext, 0, ssidToConnect);
+        return;
+      }
+
       callbackContext.error("INVALID_NETWORK_ID_TO_CONNECT");
       return;
     }
@@ -796,6 +808,7 @@ public class WifiWizard2 extends CordovaPlugin {
     protected String[] doInBackground(Object... params) {
       this.callbackContext = (CallbackContext) params[0];
       int networkIdToConnect = (Integer) params[1];
+      String networkSSIDToConnect = (String) params[2];
 
       final int TIMES_TO_RETRY = 15;
       for (int i = 0; i < TIMES_TO_RETRY; i++) {
@@ -804,18 +817,31 @@ public class WifiWizard2 extends CordovaPlugin {
         NetworkInfo.DetailedState connectionState = info
             .getDetailedStateOf(info.getSupplicantState());
 
-        boolean isConnected =
-            // need to ensure we're on correct network because sometimes this code is
-            // reached before the initial network has disconnected
-            info.getNetworkId() == networkIdToConnect && (
-                connectionState == NetworkInfo.DetailedState.CONNECTED ||
-                    // Android seems to sometimes get stuck in OBTAINING_IPADDR after it has received one
-                    (connectionState == NetworkInfo.DetailedState.OBTAINING_IPADDR
-                        && info.getIpAddress() != 0)
-            );
+        if (API_VERSION >= 29) {
+          boolean isConnected = networkSSIDToConnect != null && (info.getSSID().equals(networkSSIDToConnect) || info.getSSID().startsWith(networkSSIDToConnect)) && (
+                          connectionState == NetworkInfo.DetailedState.CONNECTED ||
+                                  // Android seems to sometimes get stuck in OBTAINING_IPADDR after it has received one
+                                  (connectionState == NetworkInfo.DetailedState.OBTAINING_IPADDR
+                                          && info.getIpAddress() != 0)
+                  );
 
-        if (isConnected) {
-          return new String[]{ null, "NETWORK_CONNECTION_COMPLETED" };
+          if (isConnected) {
+            return new String[]{ null, "NETWORK_CONNECTION_COMPLETED" };
+          }
+        } else {
+          boolean isConnected =
+              // need to ensure we're on correct network because sometimes this code is
+              // reached before the initial network has disconnected
+              info.getNetworkId() == networkIdToConnect && (
+                  connectionState == NetworkInfo.DetailedState.CONNECTED ||
+                      // Android seems to sometimes get stuck in OBTAINING_IPADDR after it has received one
+                      (connectionState == NetworkInfo.DetailedState.OBTAINING_IPADDR
+                          && info.getIpAddress() != 0)
+              );
+
+          if (isConnected) {
+            return new String[]{ null, "NETWORK_CONNECTION_COMPLETED" };
+          }
         }
 
         Log.d(TAG, "WifiWizard: Got " + connectionState.name() + " on " + (i + 1) + " out of " + TIMES_TO_RETRY);
@@ -1199,7 +1225,7 @@ public class WifiWizard2 extends CordovaPlugin {
    * @param basicIdentifier A flag to get BSSID if true or SSID if false.
    * @return true if SSID found, false if not.
    */
-  private boolean getWifiServiceInfo(CallbackContext callbackContext, boolean basicIdentifier) {    
+  private boolean getWifiServiceInfo(CallbackContext callbackContext, boolean basicIdentifier) {
     if (API_VERSION >= 23 && !cordova.hasPermission(ACCESS_FINE_LOCATION)) { //Android 9 (Pie) or newer
       requestLocationPermission(WIFI_SERVICE_INFO_CODE);
       bssidRequested = basicIdentifier;
@@ -1211,31 +1237,31 @@ public class WifiWizard2 extends CordovaPlugin {
         callbackContext.error("UNABLE_TO_READ_WIFI_INFO");
         return false;
       }
-  
+
       // Only return SSID or BSSID when actually connected to a network
       SupplicantState state = info.getSupplicantState();
       if (!state.equals(SupplicantState.COMPLETED)) {
         callbackContext.error("CONNECTION_NOT_COMPLETED");
         return false;
       }
-  
+
       String serviceInfo;
       if (basicIdentifier) {
         serviceInfo = info.getBSSID();
       } else {
         serviceInfo = info.getSSID();
       }
-  
+
       if (serviceInfo == null || serviceInfo.isEmpty() || serviceInfo == "0x") {
         callbackContext.error("WIFI_INFORMATION_EMPTY");
         return false;
       }
-  
+
       // http://developer.android.com/reference/android/net/wifi/WifiInfo.html#getSSID()
       if (serviceInfo.startsWith("\"") && serviceInfo.endsWith("\"")) {
         serviceInfo = serviceInfo.substring(1, serviceInfo.length() - 1);
       }
-  
+
       callbackContext.success(serviceInfo);
       return true;
     }
@@ -1260,7 +1286,7 @@ public class WifiWizard2 extends CordovaPlugin {
   private int ssidToNetworkId(String ssid) {
 
     try {
-      
+
       int maybeNetId = Integer.parseInt(ssid);
       Log.d(TAG, "ssidToNetworkId passed SSID is integer, probably a Network ID: " + ssid);
       return maybeNetId;
@@ -1544,7 +1570,7 @@ public class WifiWizard2 extends CordovaPlugin {
 
   /**
    * Check if we can conenct to router via HTTP connection
-   * 
+   *
    * @param callbackContext
    * @param doPing
    * @return boolean
@@ -1623,7 +1649,7 @@ public class WifiWizard2 extends CordovaPlugin {
 
   /**
    * Check if HTTP connection to URL is reachable
-   * 
+   *
    * @param checkURL
    * @return boolean
    */
