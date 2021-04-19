@@ -46,6 +46,37 @@ var WifiWizard2 = {
 
     },
 
+     /**
+     * Connect to network on iOS device > v13 using SSID prefix
+     * @param ssid              SSID Prefix
+     * @param ssidPassword      Password if connecting to WPA/WPA2 network (omit or use false to connect to open network)
+     * @returns {Promise}
+     */
+    iOSConnectNetworkSSIDPrefix: function (ssid, ssidPassword) {
+
+        return new Promise(function (resolve, reject) {
+            if( ssidPassword === undefined || ! ssidPassword || ssidPassword.length < 1 ){
+                // iOS connect open network
+                cordova.exec(resolve, reject, "WifiWizard2", "iOSConnectOpenNetworkSSIDPrefix", [{ "Ssid": ssid }]);
+
+            } else if( ssidPassword !== undefined && ssidPassword.length > 0 && ssidPassword.length < 8 ){
+                // iOS pass length does not meet requirements (min 8 chars for WPA/WPA2)
+                reject("WPA/WPA2 password length must be at least 8 characters in length!");
+
+            } else {
+                // iOS connect to WPA/WPA2 network
+                cordova.exec(resolve, reject, "WifiWizard2", "iOSConnectNetworkSSIDPrefix", [
+                {
+                    "Ssid": ssid,
+                    "Password": ssidPassword
+                }]
+                );
+            }
+
+        });
+
+    },
+
 	/**
      * Disconnect from SSID on iOS device
 	 * @param ssid
@@ -366,7 +397,7 @@ var WifiWizard2 = {
 			cordova.exec(resolve, reject, "WifiWizard2", "setBindAll", []);
 		});
     },
-    
+
     /**
      * Get Wifi Router IP from DHCP
      * @returns {Promise<any>}
@@ -623,7 +654,7 @@ var WifiWizard2 = {
 
         if(device.platform === "Android" && parseInt(device.version.split('.')[0]) >= 10){
             // Do not add "" To the SSID, as the new method for Android Q does not support it
-        } 
+        }
         else {
             if (ssid.charAt(0) != '"') {
                 ssid = '"' + ssid;
