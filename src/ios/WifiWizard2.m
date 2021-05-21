@@ -38,7 +38,7 @@
     return [cset countForObject:@"awdl0"] > 1 ? YES : NO;
 }
 
-- (void)iOSConnectNetwork:(CDVInvokedUrlCommand*)command {
+- (void)iOSConnectNetworkOLD:(CDVInvokedUrlCommand*)command {
 
     __block CDVPluginResult *pluginResult = nil;
 
@@ -89,7 +89,7 @@
 
 }
 
-- (void)iOSConnectNetworkSSIDPrefix:(CDVInvokedUrlCommand*)command {
+- (void)iOSConnectNetwork:(CDVInvokedUrlCommand*)command {
 
     __block CDVPluginResult *pluginResult = nil;
 

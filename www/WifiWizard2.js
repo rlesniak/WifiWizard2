@@ -21,7 +21,7 @@ var WifiWizard2 = {
 	 * @param ssidPassword      Password if connecting to WPA/WPA2 network (omit or use false to connect to open network)
 	 * @returns {Promise}
 	 */
-	iOSConnectNetwork: function (ssid, ssidPassword) {
+	iOSConnectNetworkOLD: function (ssid, ssidPassword) {
 
         return new Promise(function (resolve, reject) {
             if( ssidPassword === undefined || ! ssidPassword || ssidPassword.length < 1 ){
@@ -52,7 +52,7 @@ var WifiWizard2 = {
      * @param ssidPassword      Password if connecting to WPA/WPA2 network (omit or use false to connect to open network)
      * @returns {Promise}
      */
-    iOSConnectNetworkSSIDPrefix: function (ssid, ssidPassword) {
+    iOSConnectNetwork: function (ssid, ssidPassword) {
 
         return new Promise(function (resolve, reject) {
             if( ssidPassword === undefined || ! ssidPassword || ssidPassword.length < 1 ){
